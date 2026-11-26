@@ -1,30 +1,92 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
+import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:taskflow/data/models/user_model.dart';
+import 'package:taskflow/data/repositories/auth_repository.dart';
+import 'package:taskflow/presentation/bloc/auth_bloc.dart';
 
-import 'package:taskflow/main.dart';
+class MockAuthRepository extends Mock implements AuthRepository {}
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  late MockAuthRepository repository;
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+  const user = UserModel(
+    uid: 'u1',
+    name: 'Rahul Kumar',
+    email: 'rahul@test.com',
+  );
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+  setUp(() {
+    repository = MockAuthRepository();
   });
-}
+
+  group('AuthStarted', () {
+    blocTest<AuthBloc, AuthState>(
+      'emits [Unauthenticated] when nothing is saved locally',
+      build: () {
+        when(() => repository.hasSavedSession).thenReturn(false);
+        return AuthBloc(repository);
+      },
+      act: (bloc) => bloc.add(const AuthStarted()),
+      expect: () => [const Unauthenticated()],
+    );
+
+    blocTest<AuthBloc, AuthState>(
+      'emits [Authenticated] when a saved session is still valid',
+      build: () {
+        when(() => repository.hasSavedSession).thenReturn(true);
+        when(() => repository.restoreSession()).thenAnswer((_) async => user);
+        return AuthBloc(repository);
+      },
+      act: (bloc) => bloc.add(const AuthStarted()),
+      expect: () => [const Authenticated(user)],
+    );
+
+    blocTest<AuthBloc, AuthState>(
+      'emits [Unauthenticated] when the saved session has expired',
+      build: () {
+        when(() => repository.hasSavedSession).thenReturn(true);
+        when(() => repository.restoreSession()).thenAnswer((_) async => null);
+        return AuthBloc(repository);
+      },
+      act: (bloc) => bloc.add(const AuthStarted()),
+      expect: () => [const Unauthenticated()],
+    );
+  });
+
+  group('AuthLoginRequested', () {
+    blocTest<AuthBloc, AuthState>(
+      'emits [AuthLoading, Authenticated] on success',
+      build: () {
+        when(
+              () => repository.login(email: 'rahul@test.com', password: '123456'),
+        ).thenAnswer((_) async => user);
+        return AuthBloc(repository);
+      },
+      act: (bloc) => bloc.add(
+        const AuthLoginRequested(email: 'rahul@test.com', password: '123456'),
+      ),
+      expect: () => [const AuthLoading(), const Authenticated(user)],
+    );
+
+    blocTest<AuthBloc, AuthState>(
+      'emits [AuthLoading, AuthError] with the message on failure',
+      build: () {
+        when(
+              () => repository.login(email: 'rahul@test.com', password: 'wrong'),
+        ).thenThrow(const AuthFailure('Wrong email or password.'));
+        return AuthBloc(repository);
+      },
+      act: (bloc) => bloc.add(
+        const AuthLoginRequested(email: 'rahul@test.com', password: 'wrong'),
+      ),
+      expect: () => [
+        const AuthLoading(),
+        const AuthError('Wrong email or password.'),
+      ],
+    );
+
+    blocTest<AuthBloc, AuthState>(
+        'shows a generic message for unexpected errors',
+        build: () {
+          when(
