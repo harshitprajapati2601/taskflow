@@ -85,3 +85,47 @@ test/auth_bloc_test.dart
 - `AuthRepository` is the only class that talks to Firebase, so the Bloc
   can be unit tested with a mock repository.
 - `ThemeProvider` uses Provider + SharedPreferences for the dark mode flag.
+# TaskFlow Phase 6: Projects
+
+No new packages are needed.
+
+## Copy into your project
+
+Copy the `lib/` and `test/` folders from this zip into your project.
+
+Three files REPLACE your existing ones:
+- `lib/core/constants/app_constants.dart`  (adds `projectsCollection`)
+- `lib/core/di/service_locator.dart`       (registers the project repository and cubit)
+- `lib/presentation/home/home_screen.dart` (now a bottom navigation screen)
+
+Everything else is new. `app.dart` does not change.
+
+## Firestore structure created by this phase
+
+```
+projects/{projectId}
+   name, description, ownerId, inviteCode, createdAt
+   memberIds: [uid, uid]
+   roles: { uid: "admin" | "member" }
+```
+
+Collections are created automatically on the first save. No index is needed.
+
+## Test it
+
+```bash
+flutter analyze
+flutter test
+flutter run
+```
+
+1. Create a project. It appears instantly with you as Admin and a 6-character code.
+2. Check the Firestore console: a document exists under `projects`.
+3. Log in on a second device or emulator with another account, tap the join icon and enter the code. The project appears there, and the member count goes to 2 on both devices without a refresh.
+4. As the member, use the menu on the card to leave. As the admin, delete the project.
+5. Try a wrong code. You should see "No project found for that code."
+
+## Notes
+
+- Deleting a project does not delete its tasks (Firestore never deletes sub-collections automatically). Phase 7 adds that cleanup in `deleteProject`.
+- Joining works because Firestore is in test mode. In Phase 12 the security rules must allow reading a project by invite code and adding yourself to `memberIds`.

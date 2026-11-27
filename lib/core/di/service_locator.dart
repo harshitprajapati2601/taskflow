@@ -4,9 +4,10 @@ import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:taskflow/core/theme/theme_provider.dart';
 import 'package:taskflow/data/repositories/auth_repository.dart';
+import 'package:taskflow/data/repositories/project_repository.dart';
+import 'package:taskflow/presentation/projects/cubit/project_cubit.dart';
 
 import '../../presentation/bloc/auth_bloc.dart';
-
 
 /// Global service locator (dependency injection).
 final GetIt sl = GetIt.instance;
@@ -23,9 +24,16 @@ Future<void> setupServiceLocator() async {
         prefs: sl<SharedPreferences>(),
       ),
     )
+    ..registerLazySingleton<ProjectRepository>(
+          () => ProjectRepository(firestore: FirebaseFirestore.instance),
+    )
     ..registerLazySingleton<ThemeProvider>(
           () => ThemeProvider(sl<SharedPreferences>()),
     )
-  // A new bloc per request; the widget tree owns and closes it.
-    ..registerFactory<AuthBloc>(() => AuthBloc(sl<AuthRepository>()));
+  // the widget tree owns and closes it.
+    ..registerFactory<AuthBloc>(() => AuthBloc(sl<AuthRepository>()))
+  // sl<ProjectCubit>(param1: uid)
+    ..registerFactoryParam<ProjectCubit, String, void>(
+          (uid, _) => ProjectCubit(sl<ProjectRepository>(), uid),
+    );
 }
